@@ -1,0 +1,3 @@
+[submodule "lib/Arduino-Library"]
+	path = lib/Arduino-Library
+	url = https://github.com/thinger-io/Arduino-Library.git
