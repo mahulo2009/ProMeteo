@@ -5,12 +5,12 @@
 #include <ThingerESP8266.h>
 #include <ThingerSmartConfig.h>
 
-#define usuario "mhuertas"
-#define device_Id "ProMeteo"
-#define device_credentials "7no8ne10cs&K"
+#define usuario "***"
+#define device_Id "***"
+#define device_credentials "***"
 
-const char WiFi_ssid[]="AndroidAP7b99";
-const char WiFi_password[]="dcei8501";
+const char WiFi_ssid[]="***";
+const char WiFi_password[]="***";
 
 ThingerESP8266 thing(usuario, device_Id, device_credentials);
 
