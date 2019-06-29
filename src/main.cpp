@@ -19,14 +19,24 @@
 #define SCL_PIN             D2
 
 #define BME_ID              0x76
+#define SEALEVELPRESSURE    (1013.25)
+
+#define MODE_DEEP_SLEEP     0
+#define MODE_LCD_DISPLAY    1
 
 #define DEEP_SLEEP_SECONDS  10
-
-#define SEALEVELPRESSURE_HPA (1013.25)
 
 const char WIFI_SSID[]     = "***";
 const char WIFI_PASSWORD[] = "***";
 
+/**
+ * Running mode
+ * 
+ * - Deep Sleep to save battery
+ * - Lcd dipslay to show data on display
+ */
+int mode = MODE_DEEP_SLEEP;
+int counter = 0;
 /**
  * BM3280 sensor: temperature, humidity, pressure and altitude
  */
@@ -96,40 +106,58 @@ void setup() {
   thing.handle();
   thing.write_bucket(BUCKET_ID, RESOURCE_NAME);
 
-
+  //Discriminate if we are awake from deep sleep
+  //or from user reset
   rst_info * rst_info_var = ESP.getResetInfoPtr();
   if (rst_info_var->reason==REASON_DEEP_SLEEP_AWAKE) {
-
+    mode = MODE_DEEP_SLEEP;
+    //Disable LCD to save battery
     lcd.noBacklight();
     lcd.noDisplay();
-
     //Goes to deep sleep again
     Serial.println("Going to deep sleep");
     ESP.deepSleep(1000000 * DEEP_SLEEP_SECONDS, WAKE_RF_DEFAULT); 
   } else {
-    
+    mode = MODE_LCD_DISPLAY;
+    lcd.backlight();
+    lcd.display();    
   }
-
-
-
-
 }
 
-void debug() {
+/**
+* Diplay pattern:
 
-  Serial.print(" temperature\t");
-  Serial.print(bme.readTemperature());
-  Serial.print(" humidity\t");
-  Serial.print(bme.readHumidity());
-  Serial.print(" pressure\t");
-  Serial.print(bme.readPressure() / 100.0F);
-  Serial.print(" altitude\t");
-  Serial.print(bme.readAltitude(SEALEVELPRESSURE_HPA));
-  Serial.print("\n");
-
+*     0123456789012345
+*     XXXXXXXXXXXXXXXX
+*     Meteo Station
+*     25Cº 100% 1404mb
+*     XXXXXXXXXXXXXXXX
+*     0123456789012345
+*/
+void displayLCD() {
+  lcd.setCursor(1,0);
+  lcd.print("Meteo Station");
+  lcd.setCursor(0,1);
+  lcd.print(bme.readTemperature());
+  lcd.setCursor(5,1);
+  lcd.print(bme.readHumidity());
+  lcd.setCursor(10,1);
+  lcd.print(readPressure() / 100.0F);
 }
 
-void loop() { 
-  //debug();
-  //delay(1000);
+void loop() {
+  if ( mode == MODE_LCD_DISPLAY) {
+    displayLCD();
+    delay(1000* 10);
+
+    if (counter++ == 3) {
+      mode = MODE_DEEP_SLEEP;
+      //Disable LCD to save battery
+      lcd.noBacklight();
+      lcd.noDisplay();
+      //Goes to deep sleep again
+      Serial.println("Going to deep sleep");
+      ESP.deepSleep(1000000 * DEEP_SLEEP_SECONDS, WAKE_RF_DEFAULT); 
+    }
+  }
 }
