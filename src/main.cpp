@@ -8,48 +8,111 @@
 #include <Adafruit_BME280.h>
 #include <LiquidCrystal_I2C.h>
 
-#define usuario "mhuertas"
-#define device_Id "ProMeteo"
-#define device_credentials "7no8ne10cs&K"
+#define USER                "***"
+#define DEVICE_ID           "***"
+#define DEVICE_CREDENTIALS  "***"
+
+#define BUCKET_ID           "Meteo"
+#define RESOURCE_NAME       "Meteo"
+
+#define SDA_PIN             D3
+#define SCL_PIN             D2
+
+#define BME_ID              0x76
+
+#define DEEP_SLEEP_SECONDS  10
+
 #define SEALEVELPRESSURE_HPA (1013.25)
 
-const char WiFi_ssid[]="MOVISTAR_D659";
-const char WiFi_password[]="gQK9NJ6amoPbTMfcqz67";
+const char WIFI_SSID[]     = "***";
+const char WIFI_PASSWORD[] = "***";
 
-ThingerESP8266 thing(usuario, device_Id, device_credentials);
+/**
+ * BM3280 sensor: temperature, humidity, pressure and altitude
+ */
+Adafruit_BME280       bme;    
 
-Adafruit_BME280 bme;
+/**
+ * Display: 16 columns x 2 rows
+ * 
+ *  Parameters:
+ *    - @param[in] I2C id.
+ *    - @param[in] Number of columns
+ *    - @param[in] Number of rows
+ */
+LiquidCrystal_I2C     lcd(0x27, 16, 2);
 
-LiquidCrystal_I2C lcd(0x27, 16, 2);
+/**
+ * ThingerIO API 
+ * 
+ *  Parameters:
+ *    -@param[in] USER user name, previouly craated in thinger.io account
+ *    -@param[in] DEVICE_ID, the device id in the thinger.io plataform to associte this 
+ *    physical device.
+ *    -@param[in] DEVICE_CREDENTIALS, the device credentials proviced by the thinger.io device
+ *    configuration 
+ */
+ThingerESP8266        thing(USER, DEVICE_ID, DEVICE_CREDENTIALS);
 
+
+/**
+ * Setup method, it is called every time the microcontroller is switched on
+ */
 void setup() {
 
+  //Configure Serial port for debugging proposses
   Serial.begin(115200);
   Serial.setTimeout(2000);
-
+  //Wait for the Serial port to be ready
   while(!Serial) {}
 
-  Wire.pins(D3, D2);
-  Wire.begin(D3, D2); 
-  bme.begin(0x76);
-  lcd.begin(D3,D2);
+  //Configure the I2C pins
+  Wire.pins (SDA_PIN, SCL_PIN);
+  Wire.begin(SDA_PIN, SCL_PIN); 
+
+  //Start communication with the BME sensor
+  bme.begin(BME_ID);
+
+  //Start communication with the LCD Display sensor
+  lcd.begin(SDA_PIN,SCL_PIN);
+
+/* 
   lcd.noBacklight();
   lcd.noDisplay();
- 
-  thing.add_wifi(WiFi_ssid, WiFi_password);
+*/
 
+  //Connect thinger.io API to access point
+  thing.add_wifi(WIFI_SSID, WIFI_PASSWORD);
+
+  //Create the lambda function to read values
   thing["Meteo"] >> [](pson& out){
-    out["Temperatura"] = bme.readTemperature();
-    out["Humedad"] = bme.readHumidity();
-    out["Pressure"] = bme.readPressure() / 100.0F;
-    out["Altitude"] = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    out["Temperatura"]  = bme.readTemperature();
+    out["Humedad"]      = bme.readHumidity();
+    out["Pressure"]     = bme.readPressure() / 100.0F;
+    out["Altitude"]     = bme.readAltitude(SEALEVELPRESSURE_HPA);
   };
 
+  //Write the values to bucket
   thing.handle();
-  thing.write_bucket("Meteo", "Meteo");
+  thing.write_bucket(BUCKET_ID, RESOURCE_NAME);
 
-  Serial.println("Going to deep sleep");
-  ESP.deepSleep(1000000 * 30, WAKE_RF_DEFAULT); // 60 seconds
+
+  rst_info * rst_info_var = ESP.getResetInfoPtr();
+  if (rst_info_var->reason==REASON_DEEP_SLEEP_AWAKE) {
+
+    lcd.noBacklight();
+    lcd.noDisplay();
+
+    //Goes to deep sleep again
+    Serial.println("Going to deep sleep");
+    ESP.deepSleep(1000000 * DEEP_SLEEP_SECONDS, WAKE_RF_DEFAULT); 
+  } else {
+    
+  }
+
+
+
+
 }
 
 void debug() {
