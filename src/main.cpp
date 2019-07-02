@@ -12,8 +12,8 @@
 #define DEVICE_ID           "***"
 #define DEVICE_CREDENTIALS  "***"
 
-#define BUCKET_ID           "Meteo"
-#define RESOURCE_NAME       "Meteo"
+#define BUCKET_ID           "***"
+#define RESOURCE_NAME       "***"
 
 #define SDA_PIN             D3
 #define SCL_PIN             D2
@@ -25,6 +25,7 @@
 #define MODE_LCD_DISPLAY    1
 
 #define DEEP_SLEEP_SECONDS  10
+#define AWAKE_SLEEP_SECONDS 10
 
 const char WIFI_SSID[]     = "***";
 const char WIFI_PASSWORD[] = "***";
@@ -36,7 +37,12 @@ const char WIFI_PASSWORD[] = "***";
  * - Lcd dipslay to show data on display
  */
 int mode = MODE_DEEP_SLEEP;
+
+/**
+ * A variable to decide when to go to deep sleep again
+ */
 int counter = 0;
+
 /**
  * BM3280 sensor: temperature, humidity, pressure and altitude
  */
@@ -64,7 +70,6 @@ LiquidCrystal_I2C     lcd(0x27, 16, 2);
  */
 ThingerESP8266        thing(USER, DEVICE_ID, DEVICE_CREDENTIALS);
 
-
 /**
  * Setup method, it is called every time the microcontroller is switched on
  */
@@ -83,14 +88,6 @@ void setup() {
   //Start communication with the BME sensor
   bme.begin(BME_ID);
 
-  //Start communication with the LCD Display sensor
-  lcd.begin(SDA_PIN,SCL_PIN);
-
-/* 
-  lcd.noBacklight();
-  lcd.noDisplay();
-*/
-
   //Connect thinger.io API to access point
   thing.add_wifi(WIFI_SSID, WIFI_PASSWORD);
 
@@ -99,29 +96,28 @@ void setup() {
     out["Temperatura"]  = bme.readTemperature();
     out["Humedad"]      = bme.readHumidity();
     out["Pressure"]     = bme.readPressure() / 100.0F;
-    out["Altitude"]     = bme.readAltitude(SEALEVELPRESSURE_HPA);
+    out["Altitude"]     = bme.readAltitude(SEALEVELPRESSURE); 
   };
 
-  //Write the values to bucket
-  thing.handle();
-  thing.write_bucket(BUCKET_ID, RESOURCE_NAME);
-
   //Discriminate if we are awake from deep sleep
-  //or from user reset
+  //or from user reset  
   rst_info * rst_info_var = ESP.getResetInfoPtr();
   if (rst_info_var->reason==REASON_DEEP_SLEEP_AWAKE) {
     mode = MODE_DEEP_SLEEP;
-    //Disable LCD to save battery
-    lcd.noBacklight();
-    lcd.noDisplay();
+    //Write the values to bucket
+    thing.handle();
+    thing.write_bucket(BUCKET_ID, RESOURCE_NAME);
     //Goes to deep sleep again
     Serial.println("Going to deep sleep");
     ESP.deepSleep(1000000 * DEEP_SLEEP_SECONDS, WAKE_RF_DEFAULT); 
   } else {
     mode = MODE_LCD_DISPLAY;
+    //Start communication with the LCD Display sensor
+    lcd.begin(SDA_PIN,SCL_PIN);
     lcd.backlight();
     lcd.display();    
-  }
+  }  
+
 }
 
 /**
@@ -135,23 +131,39 @@ void setup() {
 *     0123456789012345
 */
 void displayLCD() {
+
   lcd.setCursor(1,0);
   lcd.print("Meteo Station");
   lcd.setCursor(0,1);
-  lcd.print(bme.readTemperature());
-  lcd.setCursor(5,1);
-  lcd.print(bme.readHumidity());
+  lcd.print((int)bme.readTemperature());
+  lcd.setCursor(2,1);
+  lcd.print("C\xDF");
+  lcd.setCursor(6,1);
+  lcd.print((int)bme.readHumidity());
+  lcd.setCursor(8,1);
+  lcd.print("%");
   lcd.setCursor(10,1);
-  lcd.print(readPressure() / 100.0F);
+  lcd.print((int)(bme.readPressure() / 100.0F));
+  lcd.setCursor(14,1);
+  lcd.print("mb");
+
 }
 
 void loop() {
+
   if ( mode == MODE_LCD_DISPLAY) {
     displayLCD();
-    delay(1000* 10);
+    
+    //Write the values to bucket
+    thing.handle();
+    thing.write_bucket(BUCKET_ID, RESOURCE_NAME);
 
-    if (counter++ == 3) {
+    //Delay 1 second
+    delay(1000);
+
+    if (counter++ == AWAKE_SLEEP_SECONDS) {
       mode = MODE_DEEP_SLEEP;
+
       //Disable LCD to save battery
       lcd.noBacklight();
       lcd.noDisplay();
@@ -160,4 +172,5 @@ void loop() {
       ESP.deepSleep(1000000 * DEEP_SLEEP_SECONDS, WAKE_RF_DEFAULT); 
     }
   }
+
 }
